@@ -7,6 +7,9 @@ config:
         api_key: provider-key
         api_base: https://api.anthropic.com
         rpm: 300
+        tpd: 1000000
+        rpd: 10000
+        daily_reset_time: "09:00"
         weight: 2
         timeout: 30
       model_info:
@@ -16,6 +19,7 @@ config:
     routing_strategy: simple-shuffle
     enable_pre_call_checks: true
     num_retries: 1
+    optional_pre_call_checks: [enforce_model_rate_limits]
     redis_host: localhost
     redis_port: 6379
     redis_password: redis-key

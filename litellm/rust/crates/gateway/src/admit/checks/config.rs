@@ -239,7 +239,8 @@ fn general(config: &Config) -> impl Iterator<Item = Box<str>> + '_ {
 /// router-core reads every other setting as Python's router does. The ones it serves only through
 /// a host step the native host does not answer are named here, or by `model` for the groups they
 /// reach, as `super::router` says, and a setting router-core never reads is named too.
-/// `enable_pre_call_checks` is honored for the groups `model` leaves native.
+/// `enable_pre_call_checks` is honored for the groups `model` leaves native, and so is
+/// `enforce_model_rate_limits`, which leaves a deployment with `itpm` or `otpm` to Python.
 fn router(settings: &RouterSettings) -> impl Iterator<Item = Box<str>> + '_ {
     let RouterSettings {
         routing_strategy,
@@ -281,10 +282,12 @@ fn router(settings: &RouterSettings) -> impl Iterator<Item = Box<str>> + '_ {
             max_retries,
             weights,
             tag_routing_prefix,
-            optional_pre_call_checks,
         ],
         on: [enable_health_check_routing, enable_tag_filtering],
-        by: [routing_strategy => super::router::picked_by_the_host]
+        by: [
+            routing_strategy => super::router::picked_by_the_host,
+            optional_pre_call_checks => super::router::checked_by_the_host,
+        ]
     )
     .chain(other("router_settings.", additional_fields.keys(), &[]))
 }
@@ -460,6 +463,10 @@ mod tests {
     #[case::a_key_the_config_types_do_not_name(
         "router_settings:\n  provider_budget_config: {}\n",
         "router_settings.provider_budget_config"
+    )]
+    #[case::a_pre_call_check_the_host_runs(
+        "router_settings:\n  optional_pre_call_checks: [enforce_model_rate_limits, prompt_caching]\n",
+        "router_settings.optional_pre_call_checks"
     )]
     #[case::a_section_the_config_types_do_not_name("future_section: {}\n", "future_section")]
     #[case::a_callback_beside_the_dynamic_rate_limiter(

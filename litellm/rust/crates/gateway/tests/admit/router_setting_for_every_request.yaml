@@ -9,7 +9,7 @@ config:
         api_key: provider-key
   router_settings:
     routing_strategy: least-busy
-    optional_pre_call_checks: [enforce_model_rate_limits]
+    optional_pre_call_checks: [enforce_model_rate_limits, prompt_caching]
     enable_tag_filtering: true
     enable_health_check_routing: true
   general_settings:
@@ -21,7 +21,7 @@ requests:
     body: {model: claude, max_tokens: 16, messages: []}
     expect: python
     reason: settings
-    over: router_settings.optional_pre_call_checks
+    over: router_settings.enable_health_check_routing
 
   - name: other caller
     headers: {authorization: Bearer sk-someone-else}

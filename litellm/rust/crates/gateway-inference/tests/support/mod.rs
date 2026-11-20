@@ -104,6 +104,27 @@ pub fn app_with_shaping(
     )
 }
 
+/// The app whose router is built from `router_settings`.
+pub fn app_with_router_settings(
+    model: &str,
+    api_base: &str,
+    litellm_params: Value,
+    router_settings: Value,
+) -> Router {
+    hosted_app(
+        test_params(model, api_base)
+            .into_iter()
+            .chain(litellm_params.as_object().cloned().unwrap_or_default())
+            .collect(),
+        Value::Object(Map::new()),
+        litellm_gateway_auth::Permissions::All,
+        None,
+        None,
+        host(Callbacks::default()),
+        &serde_json::from_value(router_settings).unwrap(),
+    )
+}
+
 /// The app with `callbacks` run around each call, in the order given.
 pub fn app_with_callbacks(
     model: &str,
@@ -117,6 +138,7 @@ pub fn app_with_callbacks(
         None,
         None,
         host(Callbacks::new(callbacks.into_iter().map(Into::into).collect()).unwrap()),
+        &RouterSettings::default(),
     )
 }
 
@@ -157,6 +179,7 @@ fn deployment_app(
         cache,
         principal,
         host(Callbacks::default()),
+        &RouterSettings::default(),
     )
 }
 
@@ -172,12 +195,13 @@ fn hosted_app(
     cache: Option<Arc<dyn litellm_cache_response::ResponseCacheService>>,
     principal: Option<litellm_gateway_auth::Principal>,
     host: NativeHost,
+    router_settings: &RouterSettings,
 ) -> Router {
     let pool = Arc::new(HttpClientPool::new(Arc::new(PublicDnsResolver)));
     let http = Resolution::from(&HttpSettings::default()).config;
     let secrets = Arc::new(NoSecrets);
     let resources = CoreResources::new(pool);
-    let (config, dynamic) = RouterConfig::from_settings(&RouterSettings::default()).unwrap();
+    let (config, dynamic) = RouterConfig::from_settings(router_settings).unwrap();
     let models = litellm_router_core::Router::new(
         RouterConfig {
             model_list: vec![DeploymentSpec {

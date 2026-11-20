@@ -8,7 +8,7 @@ use axum::{
     body::Bytes,
     extract::State,
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::{AppendHeaders, IntoResponse, Response},
 };
 use litellm_cache_response::CachePolicy;
 use litellm_host::call::CallOutput;
@@ -63,6 +63,7 @@ pub async fn create<H: Host>(
         (
             ended.error.status(),
             ended.routing(),
+            AppendHeaders(ended.error.retry_after()),
             Json(ended.error.body(request_id.as_deref())),
         )
     })

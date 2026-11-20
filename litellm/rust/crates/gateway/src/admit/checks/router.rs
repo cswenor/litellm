@@ -6,13 +6,22 @@
 use std::collections::BTreeMap;
 
 use litellm_config::{RouterSettings, RoutingGroupSpec, RoutingStrategy};
-use litellm_router_core::strategy::implemented;
+use litellm_router_core::{model_rate_limits, strategy::implemented};
 
 /// Whether router-core asks the host to pick a deployment by `strategy`.
 pub(super) fn picked_by_the_host(strategy: &Option<RoutingStrategy>) -> bool {
     strategy
         .as_ref()
         .is_some_and(|strategy| !implemented(strategy))
+}
+
+/// Whether `optional_pre_call_checks` names a check router-core asks the host to run. It runs
+/// `enforce_model_rate_limits` itself.
+pub(super) fn checked_by_the_host(checks: &Option<Vec<String>>) -> bool {
+    checks
+        .iter()
+        .flatten()
+        .any(|check| check != model_rate_limits::SETTING)
 }
 
 fn pins(affinity: &Option<BTreeMap<String, Vec<String>>>, group: &str) -> bool {

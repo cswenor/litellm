@@ -4,6 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use litellm_redis_store::router_usage::Increment;
 use litellm_redis_store::{
     Error, Number, Remote, Send, TierPolicy,
     deployment_health::DeploymentHealth,
@@ -11,8 +12,8 @@ use litellm_redis_store::{
     router_usage::{COUNTER_TTL, Counter, Kind, RouterUsage, Scope},
 };
 use litellm_router_core::{
-    HealthState, InMemoryRouterCache, Outcomes, RouterCache, UsageCounts, UsageWindow,
-    health::CooldownValue,
+    HealthState, InMemoryRouterCache, LimitCounter, LimitKind, Outcomes, RouterCache, UsageCounts,
+    UsageWindow, health::CooldownValue,
 };
 
 /// The tier settings the router's stores read, as `router_tiers` gives them to the Python host.
@@ -114,6 +115,23 @@ pub(crate) fn counter(window: &UsageWindow, kind: Kind) -> Counter {
         model: Some(window.model.clone()),
         window: window.minute.clone(),
         kind,
+    }
+}
+
+/// The counter Python's `ModelRateLimitingCheck` keeps the same count in
+/// (`UsageCounter.for_deployment`).
+fn limit_counter(counter: &LimitCounter) -> Counter {
+    Counter {
+        scope: Scope::Deployment,
+        deployment_id: counter.deployment_id.clone(),
+        model: Some(counter.model.clone()),
+        window: counter.window.clone(),
+        kind: match counter.kind {
+            LimitKind::Tpm => Kind::Tpm,
+            LimitKind::Rpm => Kind::Rpm,
+            LimitKind::Tpd => Kind::Tpd,
+            LimitKind::Rpd => Kind::Rpd,
+        },
     }
 }
 
@@ -221,6 +239,50 @@ impl RouterCache for RoutingCache {
                 )
             })
             .collect())
+    }
+
+    async fn limit_usage(
+        &self,
+        counter: &LimitCounter,
+        limit: f64,
+    ) -> Result<Option<f64>, litellm_cache::Error> {
+        self.usage
+            .current(&limit_counter(counter), whole_as_int(limit))
+            .await
+            .map(|count| count.map(Number::as_f64))
+            .map_err(cache_error)
+    }
+
+    async fn add_limit_usage(
+        &self,
+        counter: &LimitCounter,
+        amount: i64,
+        ttl: Duration,
+    ) -> Result<Option<f64>, litellm_cache::Error> {
+        Ok(self
+            .usage
+            .increment(&limit_counter(counter), Number::Int(amount), ttl)
+            .await
+            .map(Number::as_f64))
+    }
+
+    async fn add_limit_usages(
+        &self,
+        increments: &[(LimitCounter, i64, Duration)],
+    ) -> Result<Option<Vec<f64>>, litellm_cache::Error> {
+        let increments: Vec<Increment> = increments
+            .iter()
+            .map(|(counter, amount, ttl)| Increment {
+                counter: limit_counter(counter),
+                amount: Number::Int(*amount),
+                ttl: Some(*ttl),
+            })
+            .collect();
+        Ok(self
+            .usage
+            .increment_pipeline(&increments)
+            .await
+            .map(|counts| counts.into_iter().map(Number::as_f64).collect()))
     }
 
     async fn outcomes(&self, id: &str) -> Result<Outcomes, litellm_cache::Error> {
