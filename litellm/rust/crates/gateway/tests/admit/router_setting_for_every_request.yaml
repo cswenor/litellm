@@ -9,7 +9,6 @@ config:
         api_key: provider-key
   router_settings:
     routing_strategy: least-busy
-    enable_pre_call_checks: true
     optional_pre_call_checks: [enforce_model_rate_limits]
     enable_tag_filtering: true
     enable_health_check_routing: true

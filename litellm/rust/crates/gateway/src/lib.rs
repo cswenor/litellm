@@ -82,7 +82,7 @@ pub async fn build_inference(
     resources: &Resources,
     redis: &RedisClients,
 ) -> Result<Inference, Error> {
-    let catalog = Catalog::parse(BUNDLED_REGISTRY)?.value;
+    let catalog = Arc::new(Catalog::parse(BUNDLED_REGISTRY)?.value);
     let (router, shaping) = boot::router(config, &catalog).await?;
     let limits = parallel_request_limiter::Settings::read(config, environment);
     let counters = parallel_request_limiter::counters(redis.coordination.clone());
@@ -108,7 +108,7 @@ pub async fn build_inference(
         resources.secrets.clone(),
         router,
         shaping,
-        host::NativeHost::new(Arc::new(callbacks)),
+        host::NativeHost::new(Arc::new(callbacks), catalog),
     )?
     .with_client_side_credentials(config.general_settings.allow_client_side_credentials)
     .with_routing(redis::routing(redis, resources.environment.as_ref())?);

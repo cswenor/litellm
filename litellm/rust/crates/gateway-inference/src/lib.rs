@@ -92,6 +92,10 @@ impl<H: Host> Gateway<H> {
         &self.routing
     }
 
+    pub fn host(&self) -> &H {
+        &self.host
+    }
+
     /// How the chat and messages routes shape a call to deployment `id`.
     pub(crate) fn shaping(&self, id: &str) -> MessagesShaping {
         self.shaping.get(id).cloned().unwrap_or_default()

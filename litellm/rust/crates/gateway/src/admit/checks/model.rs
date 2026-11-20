@@ -23,8 +23,9 @@ const MESSAGES_PROVIDERS: [LlmProviders; 2] = [LlmProviders::Anthropic, LlmProvi
 const HONORED_EXTRA_PARAMS: [&str; 1] = ["weight"];
 
 /// The `model_info` keys the router reads as Python's does. `access_groups` only decides which
-/// models a caller other than the master key may call.
-const HONORED_MODEL_INFO: [&str; 2] = ["id", "access_groups"];
+/// models a caller other than the master key may call, and `max_input_tokens` is the context
+/// window the pre-call checks hold a prompt to.
+const HONORED_MODEL_INFO: [&str; 3] = ["id", "access_groups", "max_input_tokens"];
 
 pub(super) fn model(admit: &Admit, fields: &Map<String, Value>) -> Option<Reason> {
     let (Some(groups), Some(model)) = (&admit.groups, fields.get("model").and_then(Value::as_str))
@@ -77,6 +78,18 @@ fn unserved(admit: &Admit, group: &str) -> Option<Box<str>> {
                 .find(|(aliased, _)| aliased == group)
                 .map(|(_, alias)| format!("model_list.litellm_params.model alias {alias}").into())
         })
+        .or_else(|| pre_call(admit, group))
+}
+
+/// With `enable_pre_call_checks`, a deployment of `group` the native host reads no context window
+/// for, where the proxy's own cost map may hold one.
+fn pre_call(admit: &Admit, group: &str) -> Option<Box<str>> {
+    let checked = admit.config.router_settings.enable_pre_call_checks == Some(true);
+    let windowless = admit
+        .windowless
+        .iter()
+        .any(|windowless| windowless == group);
+    (checked && windowless).then(|| "model_list.model_info.max_input_tokens".into())
 }
 
 /// The name `catalog` holds `model` of `provider` under as another model's alias, as it holds

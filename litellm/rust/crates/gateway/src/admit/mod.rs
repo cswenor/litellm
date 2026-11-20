@@ -12,6 +12,7 @@ mod groups;
 use std::sync::Arc;
 
 use axum::{body::Body, extract::Request, http::request::Parts};
+use futures_util::future;
 use litellm_config::{Config, Environment};
 use litellm_core_utils::get_llm_provider_logic::LlmProviders;
 use litellm_gateway_auth::{Auth, BearerOrXApiKey, Permissions, Preauthenticated};
@@ -73,6 +74,8 @@ pub struct Admit {
     /// The model group of each deployment whose model the cost map holds as another model's alias,
     /// with the name it holds it under.
     aliased: Vec<(String, Box<str>)>,
+    /// The model group of each deployment the native host reads no context window for.
+    windowless: Vec<String>,
     /// `None` when a fallback list or an alias is written in a shape that is not read.
     groups: Option<Groups>,
     auth: Auth,
@@ -105,12 +108,21 @@ fn token_estimate(
 impl Admit {
     /// By the `config` the native app `state` is built from, with its environment under it as
     /// `load_config` leaves it, and the `environment` `main` read.
-    pub fn new(config: &Config, environment: &Environment, state: &AppState) -> Self {
+    pub async fn new(config: &Config, environment: &Environment, state: &AppState) -> Self {
         let deployments = state
             .inference
             .router
             .registry()
             .deployments(&DeploymentFilter::default());
+        let host = state.inference.host();
+        let windowless = future::join_all(deployments.iter().map(async |deployment| {
+            let window = host.window(deployment).await;
+            window.is_none().then(|| deployment.model_name.clone())
+        }))
+        .await
+        .into_iter()
+        .flatten()
+        .collect();
         let cost_map = CostMap::bundled();
         let aliased = deployments
             .iter()
@@ -143,6 +155,7 @@ impl Admit {
                 .map(|_| STORE_MODEL_IN_DB.into()),
             auth: state.auth(config),
             aliased,
+            windowless,
             inference: Some(state.inference.clone()),
             ..Self::over(config, deployed)
         }
@@ -163,6 +176,7 @@ impl Admit {
             stored_models: None,
             deployed,
             aliased: Vec::new(),
+            windowless: Vec::new(),
             inference: None,
         }
     }

@@ -249,11 +249,8 @@ async fn holding_keys(
             .or(state.keys.clone()),
         ..state
     };
-    let admit = Arc::new(litellm_gateway::Admit::new(
-        &config,
-        &Environment::default(),
-        &state,
-    ));
+    let admit =
+        Arc::new(litellm_gateway::Admit::new(&config, &Environment::default(), &state).await);
     let native = middleware::global(
         litellm_gateway::router(state, &config),
         &middleware::Settings::default(),

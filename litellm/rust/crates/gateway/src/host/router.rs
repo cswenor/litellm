@@ -5,11 +5,13 @@ use litellm_gateway_inference::{
     Error, RoutingCache,
     routing::{self, RouteAttempt},
 };
+use litellm_model_catalog::Catalog;
 use litellm_router_core::{
     Attempt, AttemptError, AttemptFailure, ConfigError, Deployment, RouterEvent, RouterHost,
-    RoutingContext, SelectStage, Served,
+    RoutingContext, SelectStage, Served, precall::PreCallFacts,
 };
 
+use super::precall;
 use crate::Gateway;
 
 /// router-core's host for one inference call: each attempt runs the request's route, and the
@@ -18,6 +20,7 @@ pub struct NativeRouterHost<'a, A> {
     pub(super) gateway: &'a Gateway,
     pub(super) identity: &'a AuthenticatedRequest,
     pub(super) route: &'a A,
+    pub(super) catalog: &'a Catalog,
 }
 
 impl<A: RouteAttempt> RouterHost for NativeRouterHost<'_, A> {
@@ -45,6 +48,14 @@ impl<A: RouteAttempt> RouterHost for NativeRouterHost<'_, A> {
             step: "a selection stage",
         }
         .into())
+    }
+
+    async fn pre_call_facts(
+        &self,
+        _ctx: &RoutingContext<'_>,
+        candidates: &[Arc<Deployment>],
+    ) -> Result<PreCallFacts, litellm_router_core::Error> {
+        Ok(precall::facts(self.catalog, self.route.prompt(), candidates).await)
     }
 
     async fn allow_fallback(&self, target: &str) -> Result<bool, AttemptError> {

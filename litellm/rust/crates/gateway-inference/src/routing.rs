@@ -69,6 +69,19 @@ pub trait RouteAttempt: Send + Sync {
         let _ = outcome;
         None
     }
+
+    /// The request's prompt, which the host counts for the pre-call checks. `None` for a route
+    /// whose prompt the host does not count: the checks then hold its call to no context window.
+    fn prompt(&self) -> Option<Prompt<'_>> {
+        None
+    }
+}
+
+/// The prompt a request carries, in the format its route reads it in. A route only hands it over,
+/// and the host decides how it is counted.
+pub enum Prompt<'a> {
+    /// A Messages body: its `system`, its `messages` and its `tools`.
+    Messages(&'a Map<String, Value>),
 }
 
 /// The litellm model of the first deployment the request's name resolves to for its caller,

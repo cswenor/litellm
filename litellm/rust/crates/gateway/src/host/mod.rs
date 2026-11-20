@@ -6,6 +6,9 @@
 pub mod auth;
 mod boot;
 mod capacity;
+mod model_info;
+mod precall;
+mod prompt_estimate;
 mod router;
 
 pub use boot::NativeBootHost;
@@ -16,18 +19,26 @@ use std::sync::Arc;
 
 use litellm_gateway_auth::AuthenticatedRequest;
 use litellm_gateway_inference::routing::{Host, RouteAttempt};
+use litellm_model_catalog::Catalog;
+use litellm_router_core::Deployment;
 
 use crate::{Gateway, callbacks, callbacks::Callbacks};
 
-/// The host the gateway's routes are served through.
-#[derive(Default)]
+/// The host the gateway's routes are served through, over the cost map it reads each deployment's
+/// context window from.
 pub struct NativeHost {
     callbacks: Arc<Callbacks>,
+    catalog: Arc<Catalog>,
 }
 
 impl NativeHost {
-    pub fn new(callbacks: Arc<Callbacks>) -> Self {
-        Self { callbacks }
+    pub fn new(callbacks: Arc<Callbacks>, catalog: Arc<Catalog>) -> Self {
+        Self { callbacks, catalog }
+    }
+
+    /// The context window the pre-call checks hold a prompt for `deployment` to.
+    pub(crate) async fn window(&self, deployment: &Deployment) -> Option<i64> {
+        precall::window(&self.catalog, deployment).await
     }
 }
 
@@ -49,6 +60,7 @@ impl Host for NativeHost {
             gateway,
             identity,
             route,
+            catalog: &self.catalog,
         }
     }
 }

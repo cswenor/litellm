@@ -46,6 +46,7 @@ tracing.workspace = true
 [dev-dependencies]
 litellm-redis-client.workspace = true
 litellm-redis-testing.workspace = true
+litellm-model-catalog.workspace = true
 parking_lot.workspace = true
 litellm-callbacks.workspace = true
 litellm-gateway.workspace = true

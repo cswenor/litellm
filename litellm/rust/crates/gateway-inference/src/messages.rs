@@ -30,7 +30,7 @@ use crate::{
     hooks::{self, CallHooks, Served as ServedCall},
     model_restamp::{ReportedModel, Stamp},
     request,
-    routing::{self, Host, RouteAttempt, RouteChunks},
+    routing::{self, Host, Prompt, RouteAttempt, RouteChunks},
     stream_event::{self, Counts, Read},
     stream_outcome::{self, Streamed},
 };
@@ -192,6 +192,10 @@ struct MessagesAttempt<'a, H> {
 
 impl<H: Host> RouteAttempt for MessagesAttempt<'_, H> {
     type Outcome = (Streamed<Messages>, CacheHeaders);
+
+    fn prompt(&self) -> Option<Prompt<'_>> {
+        Some(Prompt::Messages(&self.body))
+    }
 
     async fn run(&self, attempt: &Attempt) -> Result<Served<Self::Outcome>, Error> {
         let deployment = &attempt.deployment;

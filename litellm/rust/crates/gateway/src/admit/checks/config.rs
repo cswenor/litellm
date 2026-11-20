@@ -239,6 +239,7 @@ fn general(config: &Config) -> impl Iterator<Item = Box<str>> + '_ {
 /// router-core reads every other setting as Python's router does. The ones it serves only through
 /// a host step the native host does not answer are named here, or by `model` for the groups they
 /// reach, as `super::router` says, and a setting router-core never reads is named too.
+/// `enable_pre_call_checks` is honored for the groups `model` leaves native.
 fn router(settings: &RouterSettings) -> impl Iterator<Item = Box<str>> + '_ {
     let RouterSettings {
         routing_strategy,
@@ -260,7 +261,7 @@ fn router(settings: &RouterSettings) -> impl Iterator<Item = Box<str>> + '_ {
         default_fallbacks: _,
         max_fallbacks: _,
         model_group_alias: _,
-        enable_pre_call_checks,
+        enable_pre_call_checks: _,
         enable_weighted_failover: _,
         enable_health_check_routing,
         fallback_on_unsupported_params: _,
@@ -282,7 +283,7 @@ fn router(settings: &RouterSettings) -> impl Iterator<Item = Box<str>> + '_ {
             tag_routing_prefix,
             optional_pre_call_checks,
         ],
-        on: [enable_pre_call_checks, enable_health_check_routing, enable_tag_filtering],
+        on: [enable_health_check_routing, enable_tag_filtering],
         by: [routing_strategy => super::router::picked_by_the_host]
     )
     .chain(other("router_settings.", additional_fields.keys(), &[]))

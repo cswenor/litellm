@@ -15,6 +15,7 @@ use litellm_gateway::{Callbacks, Gateway, host::NativeHost};
 use litellm_gateway_inference::router;
 use litellm_http::{HttpClientPool, HttpSettings, Resolution, media::PublicDnsResolver};
 use litellm_inference::resources::CoreResources;
+use litellm_model_catalog::{BUNDLED_REGISTRY, Catalog};
 use litellm_secret_value::SecretValue;
 use litellm_secrets::source::SecretSource;
 
@@ -115,9 +116,7 @@ pub fn app_with_callbacks(
         litellm_gateway_auth::Permissions::All,
         None,
         None,
-        NativeHost::new(Arc::new(
-            Callbacks::new(callbacks.into_iter().map(Into::into).collect()).unwrap(),
-        )),
+        host(Callbacks::new(callbacks.into_iter().map(Into::into).collect()).unwrap()),
     )
 }
 
@@ -157,8 +156,13 @@ fn deployment_app(
         permissions,
         cache,
         principal,
-        NativeHost::default(),
+        host(Callbacks::default()),
     )
+}
+
+fn host(callbacks: Callbacks) -> NativeHost {
+    let catalog = Catalog::parse(BUNDLED_REGISTRY).unwrap().value;
+    NativeHost::new(Arc::new(callbacks), Arc::new(catalog))
 }
 
 fn hosted_app(
